@@ -3,6 +3,8 @@ import mss
 import win32gui
 import numpy as np
 from pynput.keyboard import Key, Controller
+import time
+import threading
 
 keyboard = Controller()
 
@@ -11,11 +13,10 @@ GREENZONE_LOW = np.array([40, 80, 80])
 FISH_UP = np.array([96, 243, 175])
 FISH_LOW = np.array([76, 230, 100])
 
-def useC(press):
-    if press:
-        keyboard.press("c")
-    else:
-        keyboard.release("c")
+def useC(holdTime):
+    keyboard.press("c")
+    time.sleep(holdTime)
+    keyboard.release("c")
 
 def getWindowCoordinate(name):
     try:
@@ -33,6 +34,13 @@ def getScreenGame():
     template = cv2.imread("images/template.png", 0)
     heightFishRegion, widthFishRegion = template.shape[:2]
 
+    a = 0.5 / 100
+    b = 1.5 / 100
+    c = 0.9 / 100
+
+    prevDeltaY = 0
+    prevGreenY = 0
+
     while True:
         left, top, width, height = getWindowCoordinate("Stardew Valley")
         
@@ -48,6 +56,7 @@ def getScreenGame():
 
             maskGreen = cv2.inRange(fishingRegionHSV, GREENZONE_LOW, GREENZONE_UP)
             contoursGreen, _ = cv2.findContours(maskGreen, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            greenY = None
             if contoursGreen:
                 contourGreen = max(contoursGreen, key=cv2.contourArea)
                 _, yGreen, _, hGreen = cv2.boundingRect(contourGreen)
@@ -55,10 +64,30 @@ def getScreenGame():
 
             maskFish = cv2.inRange(fishingRegionHSV, FISH_LOW, FISH_UP)
             contoursFish, _ = cv2.findContours(maskFish, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            fishY = None
             if contoursFish:
                 contourFish = max(contoursFish, key=cv2.contourArea)
                 _, yFish, _, hFish = cv2.boundingRect(contourFish)
                 fishY = yFish + hFish/2
+
+            if greenY is not None and fishY is not None:
+                deltaY = greenY - fishY
+                deltaVel = deltaY - prevDeltaY
+                greenVel = greenY - prevGreenY
+
+                prevDeltaY = deltaY
+                prevGreenY = greenY
+
+                holdTime = (a * deltaY) + (b * deltaVel) + (c * greenVel)
+
+                if holdTime < 0:
+                    holdTime = 0
+                if holdTime > 0.7:
+                    holdTime = 0.7
+
+                if holdTime > 0:
+                    threading.Thread(target=useC, args=(holdTime,), daemon=True).start()
+                print("holdTime:", holdTime)
 
 
         cv2.imshow('Test', screen)
