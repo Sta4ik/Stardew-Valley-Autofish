@@ -33,6 +33,7 @@ def getScreenGame():
     template = cv2.imread("images/template.png", 0)
     fish = cv2.imread("images/fish.png", 0)
     greenZone = cv2.imread("images/greenzone.png", 0 )
+    heightFishRegion, widthFishRegion = template.shape[:2]
 
     while True:
         left, top, width, height = getWindowCoordinate("Stardew Valley")
@@ -41,10 +42,14 @@ def getScreenGame():
         screenGray = cv2.cvtColor(screen, cv2.COLOR_BGRA2GRAY)
 
         findTemplate = cv2.matchTemplate(screenGray, template, cv2.TM_CCOEFF_NORMED)
-        _, max_val, _, _ = cv2.minMaxLoc(findTemplate)
+        _, max_val, _, maxFishRegionCoord = cv2.minMaxLoc(findTemplate)
         if max_val > 0.5:
-            fishRegion = np.array(scr.grab({"left": left, "top": top, "width": width, "height": height}))
-        
+            fishingRegion = np.array(scr.grab({"left": left + maxFishRegionCoord[0], "top": top + maxFishRegionCoord[1], "width": widthFishRegion, "height": heightFishRegion}))
+            cv2.imshow('Fish', fishingRegion)
+
+            if cv2.waitKey(1) & 0xFF == 27:
+                break
+
         cv2.imshow('Test', screen)
 
         if cv2.waitKey(1) & 0xFF == 27:
