@@ -29,14 +29,57 @@ def getWindowCoordinate(name):
     except Exception as e:
         print(f"Error: {e}")
 
-def getScreenGame():
-    scr = mss.mss()
-    template = cv2.imread("images/template.png", 0)
-    heightFishRegion, widthFishRegion = template.shape[:2]
+def captureGame(scr, left, top, width, height):
+    return np.array(scr.grab({"left": left, "top": top, "width": width, "height": height}))
 
+def captureFishingRegion(scr, left, top, maxFishRegionCoord, widthFishRegion, heightFishRegion):
+    return np.array(scr.grab({"left": left + maxFishRegionCoord[0], "top": top + maxFishRegionCoord[1], "width": widthFishRegion, "height": heightFishRegion}))
+
+def getGreenY(fishingRegionHSV):
+    greenY = None
+    maskGreen = cv2.inRange(fishingRegionHSV, GREENZONE_LOW, GREENZONE_UP)
+    contoursGreen, _ = cv2.findContours(maskGreen, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    if contoursGreen:
+        contourGreen = max(contoursGreen, key=cv2.contourArea)
+        _, yGreen, _, hGreen = cv2.boundingRect(contourGreen)
+        greenY = yGreen + hGreen/2
+    return greenY
+
+def getFishY(fishingRegionHSV):
+    fishY = None
+    maskFish = cv2.inRange(fishingRegionHSV, FISH_LOW, FISH_UP)
+    contoursFish, _ = cv2.findContours(maskFish, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    if contoursFish:
+        contourFish = max(contoursFish, key=cv2.contourArea)
+        _, yFish, _, hFish = cv2.boundingRect(contourFish)
+        fishY = yFish + hFish/2
+    return fishY
+
+def calcHoldTime(greenY, fishY, prevDeltaY, prevGreenY):
     a = 0.5 / 100
     b = 1.5 / 100
     c = 0.9 / 100
+    
+    deltaY = greenY - fishY
+    deltaVel = deltaY - prevDeltaY
+    greenVel = greenY - prevGreenY
+
+    prevDeltaY = deltaY
+    prevGreenY = greenY
+
+    holdTime = (a * deltaY) + (b * deltaVel) + (c * greenVel)
+
+    if holdTime < 0:
+        holdTime = 0
+    if holdTime > 0.7:
+        holdTime = 0.7
+
+    return holdTime, prevDeltaY, prevGreenY
+
+def fishing():
+    scr = mss.mss()
+    template = cv2.imread("images/template.png", 0)
+    heightFishRegion, widthFishRegion = template.shape[:2]
 
     prevDeltaY = 0
     prevGreenY = 0
@@ -44,51 +87,26 @@ def getScreenGame():
     while True:
         left, top, width, height = getWindowCoordinate("Stardew Valley")
         
-        screen = np.array(scr.grab({"left": left, "top": top, "width": width, "height": height}))
+        screen = captureGame(scr, left, top, width, height)
         screenGray = cv2.cvtColor(screen, cv2.COLOR_BGRA2GRAY)
 
         findTemplate = cv2.matchTemplate(screenGray, template, cv2.TM_CCOEFF_NORMED)
         _, max_val, _, maxFishRegionCoord = cv2.minMaxLoc(findTemplate)
+
         if max_val > 0.5:
-            fishingRegion = np.array(scr.grab({"left": left + maxFishRegionCoord[0], "top": top + maxFishRegionCoord[1], "width": widthFishRegion, "height": heightFishRegion}))
+            fishingRegion = captureFishingRegion(scr, left, top, maxFishRegionCoord, widthFishRegion, heightFishRegion)
             fishingRegionBGR = cv2.cvtColor(fishingRegion, cv2.COLOR_BGRA2BGR)
             fishingRegionHSV = cv2.cvtColor(fishingRegionBGR, cv2.COLOR_BGR2HSV)
 
-            maskGreen = cv2.inRange(fishingRegionHSV, GREENZONE_LOW, GREENZONE_UP)
-            contoursGreen, _ = cv2.findContours(maskGreen, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-            greenY = None
-            if contoursGreen:
-                contourGreen = max(contoursGreen, key=cv2.contourArea)
-                _, yGreen, _, hGreen = cv2.boundingRect(contourGreen)
-                greenY = yGreen + hGreen/2
-
-            maskFish = cv2.inRange(fishingRegionHSV, FISH_LOW, FISH_UP)
-            contoursFish, _ = cv2.findContours(maskFish, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-            fishY = None
-            if contoursFish:
-                contourFish = max(contoursFish, key=cv2.contourArea)
-                _, yFish, _, hFish = cv2.boundingRect(contourFish)
-                fishY = yFish + hFish/2
+            greenY = getGreenY(fishingRegionHSV)
+            fishY = getFishY(fishingRegionHSV)
 
             if greenY is not None and fishY is not None:
-                deltaY = greenY - fishY
-                deltaVel = deltaY - prevDeltaY
-                greenVel = greenY - prevGreenY
-
-                prevDeltaY = deltaY
-                prevGreenY = greenY
-
-                holdTime = (a * deltaY) + (b * deltaVel) + (c * greenVel)
-
-                if holdTime < 0:
-                    holdTime = 0
-                if holdTime > 0.7:
-                    holdTime = 0.7
+                holdTime, prevDeltaY, prevGreenY = calcHoldTime(greenY, fishY, prevDeltaY, prevGreenY)
 
                 if holdTime > 0:
                     threading.Thread(target=useC, args=(holdTime,), daemon=True).start()
                 print("holdTime:", holdTime)
-
 
         cv2.imshow('Test', screen)
 
@@ -98,4 +116,4 @@ def getScreenGame():
     cv2.destroyAllWindows()
 
 if __name__ == "__main__":
-    getScreenGame()
+    fishing()
