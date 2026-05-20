@@ -31,7 +31,6 @@ def getWindowCoordinate(name):
 def getScreenGame():
     scr = mss.mss()
     template = cv2.imread("images/template.png", 0)
-    fish = cv2.imread("images/fish.png", 0)
     heightFishRegion, widthFishRegion = template.shape[:2]
 
     while True:
@@ -48,12 +47,20 @@ def getScreenGame():
             fishingRegionHSV = cv2.cvtColor(fishingRegionBGR, cv2.COLOR_BGR2HSV)
 
             maskGreen = cv2.inRange(fishingRegionHSV, GREENZONE_LOW, GREENZONE_UP)
-            contours, _ = cv2.findContours(maskGreen, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-            if contours:
-                contour = max(contours, key=cv2.contourArea)
-                _, y, _, h = cv2.boundingRect(contour)
-                greenY = y + h/2
-            print(greenY)
+            contoursGreen, _ = cv2.findContours(maskGreen, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            if contoursGreen:
+                contourGreen = max(contoursGreen, key=cv2.contourArea)
+                _, yGreen, _, hGreen = cv2.boundingRect(contourGreen)
+                greenY = yGreen + hGreen/2
+
+            maskFish = cv2.inRange(fishingRegionHSV, FISH_LOW, FISH_UP)
+            contoursFish, _ = cv2.findContours(maskFish, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            if contoursFish:
+                contourFish = max(contoursFish, key=cv2.contourArea)
+                _, yFish, _, hFish = cv2.boundingRect(contourFish)
+                fishY = yFish + hFish/2
+
+
         cv2.imshow('Test', screen)
 
         if cv2.waitKey(1) & 0xFF == 27:
