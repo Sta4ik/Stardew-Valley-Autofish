@@ -6,8 +6,8 @@ from pynput.keyboard import Key, Controller
 
 keyboard = Controller()
 
-GREENZONE_UP = np.array([43, 255, 229])
-GREENZONE_LOW = np.array([43, 255, 229])
+GREENZONE_UP = np.array([85, 255, 255])
+GREENZONE_LOW = np.array([40, 80, 80])
 FISH_UP = np.array([96, 243, 175])
 FISH_LOW = np.array([76, 230, 100])
 
@@ -32,7 +32,6 @@ def getScreenGame():
     scr = mss.mss()
     template = cv2.imread("images/template.png", 0)
     fish = cv2.imread("images/fish.png", 0)
-    greenZone = cv2.imread("images/greenzone.png", 0 )
     heightFishRegion, widthFishRegion = template.shape[:2]
 
     while True:
@@ -45,11 +44,16 @@ def getScreenGame():
         _, max_val, _, maxFishRegionCoord = cv2.minMaxLoc(findTemplate)
         if max_val > 0.5:
             fishingRegion = np.array(scr.grab({"left": left + maxFishRegionCoord[0], "top": top + maxFishRegionCoord[1], "width": widthFishRegion, "height": heightFishRegion}))
-            cv2.imshow('Fish', fishingRegion)
+            fishingRegionBGR = cv2.cvtColor(fishingRegion, cv2.COLOR_BGRA2BGR)
+            fishingRegionHSV = cv2.cvtColor(fishingRegionBGR, cv2.COLOR_BGR2HSV)
 
-            if cv2.waitKey(1) & 0xFF == 27:
-                break
-
+            maskGreen = cv2.inRange(fishingRegionHSV, GREENZONE_LOW, GREENZONE_UP)
+            contours, _ = cv2.findContours(maskGreen, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            if contours:
+                contour = max(contours, key=cv2.contourArea)
+                _, y, _, h = cv2.boundingRect(contour)
+                greenY = y + h/2
+            print(greenY)
         cv2.imshow('Test', screen)
 
         if cv2.waitKey(1) & 0xFF == 27:
