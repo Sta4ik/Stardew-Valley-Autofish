@@ -6,6 +6,11 @@ from pynput.keyboard import Key, Controller
 
 keyboard = Controller()
 
+GREENZONE_UP = np.array([43, 255, 229])
+GREENZONE_LOW = np.array([43, 255, 229])
+FISH_UP = np.array([96, 243, 175])
+FISH_LOW = np.array([76, 230, 100])
+
 def useC(press):
     if press:
         keyboard.press("c")
@@ -38,20 +43,7 @@ def getScreenGame():
         findTemplate = cv2.matchTemplate(screenGray, template, cv2.TM_CCOEFF_NORMED)
         _, max_val, _, _ = cv2.minMaxLoc(findTemplate)
         if max_val > 0.5:
-            findFish = cv2.matchTemplate(screenGray, fish, cv2.TM_CCOEFF_NORMED)
-            _, maxFish, _, fishCoord = cv2.minMaxLoc(findFish)
-
-            findGreenZone = cv2.matchTemplate(screenGray, greenZone, cv2.TM_CCOEFF_NORMED)
-            _, maxGreen, _, greenCoord = cv2.minMaxLoc(findGreenZone)
-
-            greenY = greenCoord[1]
-            fishY = fishCoord[1]
-            print(maxGreen, greenY, maxFish, fishY)
-            if greenY - fishY > 0:
-                print("C")
-                useC(True)
-            else:
-                useC(False)
+            fishRegion = np.array(scr.grab({"left": left, "top": top, "width": width, "height": height}))
         
         cv2.imshow('Test', screen)
 
@@ -60,8 +52,5 @@ def getScreenGame():
     
     cv2.destroyAllWindows()
 
-def main():
-    getScreenGame()
-
 if __name__ == "__main__":
-    main()
+    getScreenGame()
